@@ -5,6 +5,7 @@
 #define slint signed long int
 #define usint unsigned short int
 #define ssint signed short int
+#define debuguj 1
 
 ulint DEP_TIMER=1;
 ulint DEP_BUFFER=2;
@@ -24,6 +25,27 @@ const unsigned long int grey1=0x00111111;
 const unsigned long int grey8=0x00888888;
 const unsigned long int greyF=0x00FFFFFF;
 const unsigned long int white=0x00FFFFFF;
+
+void debug(char*text)
+{
+    #ifdef debuguj
+    FILE*plik;
+    plik=fopen("debug.txt","a+");
+    fprintf(plik,"%s ",text);
+    fclose(plik);
+    #endif
+};
+
+void debug(int liczba)
+{
+    #ifdef debuguj
+    FILE*plik;
+    plik=fopen("debug.txt","a+");
+    fprintf(plik,"%i ",liczba);
+    fclose(plik);
+    #endif
+};
+
 //ulint DEP;
 /******************************************************
  * Tboard                                             *
@@ -64,16 +86,17 @@ class Tboard
 	    //sprawdza czy na danym polu skoczek ju¿ stawa³
 	    int check(int x,int y);
 	    int check2(int,int);
-	    int push(int x,int y,int i);
-		int  pop(int,int);
+	    unsigned long int arraypos(int x,int y);
+	    int push(int,int,int);
+		int pop();
 		void draw_field(int,int,int);
 		void draw(int,int,int);
 		int assert(int,int,int);
 		void zapisz_stan();
 		BITMAP*bitmap;
-		unsigned long int*stos_x;
-		unsigned long int*stos_y;
-		unsigned long int*stos_k;
+		long int*stos_x;
+		long int*stos_y;
+		long int*stos_k;
 		unsigned long int*pola;
 		unsigned short int*free_moves;
 		int forced_move_x,forced_move_y;
@@ -90,18 +113,12 @@ class Tboard
 		unsigned long int size;
 };
 
-void write_debug(char*text){
-    FILE*plik;
-    plik=fopen("debug.txt","a");
-    fprintf(plik,"%s",text);
-    fclose(plik);
-};
     
 FILE*zapis;
 Tboard*board;
 Tdata data;
 unsigned long int time_sec;
-int debug=0;
+//int debug=0;
 
 /******************************************************
  * Tboard::Tboard(int n)                              *
@@ -111,9 +128,9 @@ int debug=0;
  * Inicjuje szachownice, zmienne oraz bitmape         *
  ******************************************************/
 Tboard::Tboard(int n){
-            stos_x=new unsigned long int[n*n];
-            stos_y=new unsigned long int[n*n];
-            stos_k=new unsigned long int[n*n];
+            stos_x=new long int[n*n];
+            stos_y=new long int[n*n];
+            stos_k=new long int[n*n];
             pola=new unsigned long int[n*n];
             free_moves=new unsigned short int[n*n];
             int i,j,k;
@@ -172,6 +189,10 @@ inline int Tboard::check(int x,int y){
     return -1;
 };
 
+inline unsigned long int Tboard::arraypos(int x,int y){
+    return (x-1)*size+y-1;
+};
+
 /******************************************************
  * Tboard::push(int x,int y,int i)                    *
  * funkcja                                            *
@@ -183,15 +204,13 @@ inline int Tboard::check(int x,int y){
  * kolejny ruch na pole (x,y).                        *
  ******************************************************/
 int Tboard::push(int x,int y,int i){
-    int forced=0,ret=0,temp,k;
-    forced_move_x=0;
-    forced_move_y=0;
     if(check(x,y)==0){
-    top++;
-    stos_x[top]=x;
-    stos_y[top]=y;
-    pola[(x-1)*size+y-1]=i;
-    for(k=0;k<8;k++){
+        top++;
+        stos_x[top]=x;stos_y[top]=y;stos_k[top]=i;
+        pola[arraypos(x,y)]=top;
+        forced_move_x=forced_move_y=0;
+        int forced;
+        for(int k=0;k<8;k++){
         if(check2(x+vert[k],y+horiz[k])>0){
             --free_moves[(x+vert[k]-1)*size+y+horiz[k]-1];
             if(check2(x+vert[k],y+horiz[k])==1&&check(x+vert[k],y+horiz[k])==0){
@@ -199,12 +218,9 @@ int Tboard::push(int x,int y,int i){
            	};
        	};
     };
-    if(data.grafika)
-    if(data.szachownica==1)
-    rect(screen,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-1,y_s*(y-1)+y_s-1,white);
-    forced_num=forced;
-    if (forced>1)ret=1;
-    return ret;}else{return 2;};
+    
+        rect(screen,x*x_s,y*y_s,x*x_s+x_s-1,y*y_s+y_s-1,white);
+    };
 };
 
 /******************************************************
@@ -215,22 +231,17 @@ int Tboard::push(int x,int y,int i){
  *                                                    *
  * Funkcja cofa skoczka o jeden ruch z pola (x,y).    *
  ******************************************************/
-int Tboard::pop(int x,int y){
-
-    pola[(x-1)*size+y-1]=0;
-    for(int k=0;k<8;k++){
-    	if(check2(x+vert[k],y+horiz[k])>-1)free_moves[(x+vert[k]-1)*size+y+horiz[k]-1]++;
-   	};
+int Tboard::pop(){
+    pola[arraypos(stos_x[top],stos_y[top])]=0;
+    
     if(data.grafika)
     if(data.szachownica==1)
-   	rect(screen,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-1,y_s*(y-1)+y_s-1,black);
+   	rect(screen,x_s*(stos_x[top]),      y_s*(stos_y[top]),
+                x_s*(stos_x[top])+x_s-1,y_s*(stos_y[top])+y_s-1,black);
    	if(top>0){
-   	unsigned long int ret=stos_x[top]*(size-1)+stos_y[top]-1;
    	stos_x[top]=0;
    	stos_y[top]=0;
     top--;
-    return ret;}else{
-        return -1;
     };
 };
 
@@ -285,7 +296,7 @@ void Tboard::draw(int x,int y,int back)
 void timer_handle()
 {
     time_sec++;
-    board->draw(0,0,0);
+    //board->draw(0,0,0);
 };
 
 inline int Tboard::assert(int ret,int x,int y)
@@ -308,45 +319,26 @@ void Tboard::zapisz_stan()
 
 int Tboard::move(int x,int y,int i)
 {
-    int ret;
-    if(key[KEY_ESC]||closed_paths>data.ile)return 0;
-    if(time_sec*time_step>data.backtrace&&closed_paths==0){time_sec=0;backtrace=size*size*1/4;};
-    if(backtrace){if(i>backtrace){time_sec=0;return 0;}else backtrace=0;};
-    if(i<size*size){
-        ret=push(x,y,i);
-        last_x=x;last_y=y;
-        if ((i==size*size-1)||assert(ret,x,y))
-        {
-  		 moves++;
-   		 if(forced_move_x)
-   	 		move(forced_move_x,forced_move_y,i+1);
-   	 	 else
-      		  for(int k=0;k<8;k++)move(x+vert[k],y+horiz[k],i+1);
-   		};
-        if(ret!=2)pop(x,y);
-    };
-    if(i==size*size){
-                    if((x==size-1&&y==3)||(x==size-2&&y==2)){
-                        zapisz_stan();
-                        closed_paths++;
-                        if(data.grafika)
-                        if(data.szachownica)
-                        textprintf(screen,font,0,y_s*size+60,makecol24(0,255,0),"Tboard::move(%i,%i,%i):closed path=%i",x,y,i,closed_paths);
-                        else
-                        textprintf(screen,font,0,60,makecol24(0,255,0),"Tboard::move(%i,%i,%i):closed path=%i",x,y,i,closed_paths);
-                    }else{
-                        opened_paths++;
-                        //if(data.grafika)
-                        //textprintf(screen,font,x_s*size,0,makecol24(0,255,0),"Tboard::move(%i,%i,%i):open path=%i",x,y,i,opened_paths);
-                    };
+    while(top<size*size&&(key[KEY_ESC]==0)){
+        if(stos_k[top]<8)
+        if(forced_move_x)
+          push(forced_move_x,forced_move_y,-1);
+        else
+          push(stos_x[top]+vert[stos_k[top]],stos_y[top]+horiz[stos_k[top]],-1);
+        else
+          pop();
+        debug("move");debug(stos_x[top]);debug(stos_y[top]);debug(stos_k[top]);debug("\n");
+        clear_keybuf();
+        while(!keypressed());
+        stos_k[top]++;
     };
 };
 
 void Tboard::chess()
 {
     moves=0;
-	int x=size,y=1;
-	move(x,y,1);
+	push(1,1,0);
+	move(1,1,1);
 };
 
 void init()
