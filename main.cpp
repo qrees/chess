@@ -101,43 +101,11 @@ inline int Tboard::check(int x,int y){
 inline int Tboard::push(int x,int y,int i){
     //stos[top]=(x-1)*size+y-1;top++;
     pola[(x-1)*size+y-1]=i;
-    if(y>1){
-        if(check2(x-1,y-2)>0)free_moves[(x-2)*size+y-3]--;
-        if(check2(x+1,y-2)>0)free_moves[(x-0)*size+y-3]--;
-    };
-    if(x<size-1){
-        if(check2(x+2,y-1)>0)free_moves[(x+1)*size+y-2]--;
-        if(check2(x+2,y+1)>0)free_moves[(x+1)*size+y-0]--;
-    };
-    if(y<size-1){
-    	if(check2(x+1,y+2)>0)free_moves[(x-0)*size+y+1]--;
-    	if(check2(x-1,y+2)>0)free_moves[(x-2)*size+y+1]--;
-    };
-    if(x>1){
-        if(check2(x-2,y+1)>0)free_moves[(x-3)*size+y-0]--;
-        if(check2(x-2,y-1)>0)free_moves[(x-3)*size+y-2]--;
-    };
 };
 
 inline int Tboard::pop(int x,int y){
     //pola[stos[--top]]=0;
     pola[(x-1)*size+y-1]=0;
-    if(y>1){
-    if(check2(x-1,y-2)>-1)free_moves[(x-2)*size+y-3]++;
-    if(check2(x+1,y-2)>-1)free_moves[(x-0)*size+y-3]++;
-    };
-	if(x<size-1){
-    if(check2(x+2,y-1)>-1)free_moves[(x+1)*size+y-2]++;
-    if(check2(x+2,y+1)>-1)free_moves[(x+1)*size+y-0]++;
-    };
-    if(y<size-1){
-    if(check2(x+1,y+2)>-1)free_moves[(x-0)*size+y+1]++;
-    if(check2(x-1,y+2)>-1)free_moves[(x-2)*size+y+1]++;
-    };
-    if(x>1){
-    if(check2(x-2,y+1)>-1)free_moves[(x-3)*size+y-0]++;
-    if(check2(x-2,y-1)>-1)free_moves[(x-3)*size+y-2]++;
-    };
     //return stos[top];
 };
 
@@ -188,14 +156,6 @@ void timer_handle()
 
 inline int Tboard::assert(int x,int y)
 {
-    if(check(x-2,y-1)+check2(x-2,y-1)==0)return false;else
-    if(check(x-2,y+1)+check2(x-2,y+1)==0)return false;else
-    if(check(x-1,y+2)+check2(x-1,y+2)==0)return false;else
-    if(check(x+1,y+2)+check2(x+1,y+2)==0)return false;else
-    if(check(x+2,y+1)+check2(x+2,y+1)==0)return false;else
-    if(check(x+2,y-1)+check2(x+2,y-1)==0)return false;else
-    if(check(x-1,y-2)+check2(x-1,y-2)==0)return false;else
-    if(check(x+1,y-2)+check2(x+1,y-2)==0)return false;else
     return true;
 
 /* return !((check(x-2,y-1)+check2(x-2,y-1)==0)||(check(x-2,y+1)+check2(x-2,y+1)==0)||
