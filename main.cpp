@@ -5,7 +5,7 @@
 #define slint signed long int
 #define usint unsigned short int
 #define ssint signed short int
-#define debuguj 1
+//#define debuguj 1
 
 ulint DEP_TIMER=1;
 ulint DEP_BUFFER=2;
@@ -19,12 +19,16 @@ int horiz_[8]={-2,-2,-1,+1,+2,+2,+1,-1};
 const unsigned long int red  =0x00FF0000;
 const unsigned long int green=0x0000FF00;
 const unsigned long int blue =0x000000FF;
+const unsigned long int dred  =0x00880000;
+const unsigned long int dgreen=0x00008800;
+const unsigned long int dblue =0x00000088;
 const unsigned long int black=0x00000000;
 const unsigned long int grey0=0x00000000;
 const unsigned long int grey1=0x00111111;
 const unsigned long int grey8=0x00888888;
 const unsigned long int greyF=0x00FFFFFF;
 const unsigned long int white=0x00FFFFFF;
+
 
 void debug(char*text)
 {
@@ -67,6 +71,7 @@ class Tdata
     int dump_data;
     int szachownica;
     int backtrace;
+    int update;
 };
 class Tboard
 {
@@ -74,18 +79,21 @@ class Tboard
 //konstruktor
         Tboard(int n);
         ~Tboard(){
+
             delete[] pola;
-            //delete[] stos;
+            delete[] stos_x;
+            delete[] stos_y;
+            delete[] stos_k;
+            delete[] free_moves;
             destroy_bitmap(bitmap);
         };
-        //pocz¹tek "gry"
 		void chess();
 	private:
 	    //wykonanie pojedynczego ruchu, ewentualne wypisanie wyniku do pliku
 	    int move(int x,int y,int i);
 	    //sprawdza czy na danym polu skoczek ju¿ stawa³
-	    int check(int x,int y);
-	    int check2(int,int);
+	    int check(long int x,long int y);
+	    int check2(long int,long int);
 	    unsigned long int arraypos(int x,int y);
 	    int push(int,int,int);
 		int pop();
@@ -94,9 +102,9 @@ class Tboard
 		int assert(int,int,int);
 		void zapisz_stan();
 		BITMAP*bitmap;
-		long int*stos_x;
-		long int*stos_y;
-		long int*stos_k;
+		int*stos_x;
+		int*stos_y;
+		short int*stos_k;
 		unsigned long int*pola;
 		unsigned short int*free_moves;
 		int forced_move_x,forced_move_y;
@@ -118,6 +126,7 @@ FILE*zapis;
 Tboard*board;
 Tdata data;
 unsigned long int time_sec;
+unsigned long int timer;
 //int debug=0;
 
 /******************************************************
@@ -128,9 +137,9 @@ unsigned long int time_sec;
  * Inicjuje szachownice, zmienne oraz bitmape         *
  ******************************************************/
 Tboard::Tboard(int n){
-            stos_x=new long int[n*n];
-            stos_y=new long int[n*n];
-            stos_k=new long int[n*n];
+            stos_x=new int[n*n];
+            stos_y=new int[n*n];
+            stos_k=new short int[n*n];
             pola=new unsigned long int[n*n];
             free_moves=new unsigned short int[n*n];
             int i,j,k;
@@ -156,6 +165,10 @@ Tboard::Tboard(int n){
             //DEP_BUFFER=0;
         };
 
+inline unsigned long int Tboard::arraypos(int x,int y){
+    return (x-1)*size+y-1;
+};
+
 /******************************************************
  * Tboard::check2(int x,int y)                        *
  * funkcja                                            *
@@ -165,9 +178,9 @@ Tboard::Tboard(int n){
  * Funckja zwraca ile jest mo¿liwych róchów z danego  *
  * pola szachownicy.                                  *
  ******************************************************/
-inline int Tboard::check2(int x,int y){
+inline int Tboard::check2(long int x,long int y){
     if((x>0)&&(x<=size)&&(y>0)&&(y<=size))
-    return free_moves[(x-1)*size+y-1];
+    return free_moves[arraypos(x,y)];
     else
     return -1;
 };
@@ -182,15 +195,11 @@ inline int Tboard::check2(int x,int y){
  * polu szachownicy, i je¿eli tak to kiedy, a je¿eli  *
  * nie to zwraca 0.                                   *
  ******************************************************/
-inline int Tboard::check(int x,int y){
+inline int Tboard::check(long int x,long int y){
     if((x>0)&&(x<=size)&&(y>0)&&(y<=size))
-    return pola[(x-1)*size+y-1];
+    return pola[arraypos(x,y)];
     else
     return -1;
-};
-
-inline unsigned long int Tboard::arraypos(int x,int y){
-    return (x-1)*size+y-1;
 };
 
 /******************************************************
@@ -204,22 +213,33 @@ inline unsigned long int Tboard::arraypos(int x,int y){
  * kolejny ruch na pole (x,y).                        *
  ******************************************************/
 int Tboard::push(int x,int y,int i){
-    if(check(x,y)==0){
+    int ret=1;
+    if((x==size-1)&&(y==3)&&(top+1!=size*size));else
+    if(check(x,y)==0)
+    {
+        moves++;
         top++;
+        int forced=0;
         stos_x[top]=x;stos_y[top]=y;stos_k[top]=i;
         pola[arraypos(x,y)]=top;
+        
+        //if(data.grafika)
+        //if(data.szachownica==1)
+        //rect(screen,x_s*(x),    y_s*(y),
+        //            x_s*(x)+x_s-1,y_s*(y)+y_s-1,white);
+                
         forced_move_x=forced_move_y=0;
-        int forced;
         for(int k=0;k<8;k++){
-        if(check2(x+vert[k],y+horiz[k])>0){
-            --free_moves[(x+vert[k]-1)*size+y+horiz[k]-1];
-            if(check2(x+vert[k],y+horiz[k])==1&&check(x+vert[k],y+horiz[k])==0){
-            	forced++;forced_move_x=x+vert[k];forced_move_y=y+horiz[k];
-           	};
-       	};
-    };
-    
-        rect(screen,x*x_s,y*y_s,x*x_s+x_s-1,y*y_s+y_s-1,white);
+         if(check2(x+vert[k],y+horiz[k])>0){
+             --free_moves[arraypos(x+vert[k],y+horiz[k])];
+             if(check2(x+vert[k],y+horiz[k])==1&&check(x+vert[k],y+horiz[k])==0){
+             	forced++;forced_move_x=x+vert[k];forced_move_y=y+horiz[k];
+           	 };
+       	 };
+        };
+        if(forced==1){stos_k[top]=6;};
+        if(forced>1){ret=0;};
+        return ret;
     };
 };
 
@@ -232,29 +252,58 @@ int Tboard::push(int x,int y,int i){
  * Funkcja cofa skoczka o jeden ruch z pola (x,y).    *
  ******************************************************/
 int Tboard::pop(){
+    if(top>0){
     pola[arraypos(stos_x[top],stos_y[top])]=0;
-    
-    if(data.grafika)
-    if(data.szachownica==1)
-   	rect(screen,x_s*(stos_x[top]),      y_s*(stos_y[top]),
-                x_s*(stos_x[top])+x_s-1,y_s*(stos_y[top])+y_s-1,black);
-   	if(top>0){
+    forced_move_x=forced_move_y=0;
+
+    for(int k=0;k<8;k++){
+    	if(check2(stos_x[top]+vert[k],stos_y[top]+horiz[k])>=0)
+          free_moves[arraypos(stos_x[top]+vert[k],stos_y[top]+horiz[k])]++;
+   	};
+
+    //if(data.grafika)
+    //if(data.szachownica==1)
+   	//rect(screen,x_s*(stos_x[top]),    y_s*(stos_y[top]),
+    //            x_s*(stos_x[top])+x_s-1,y_s*(stos_y[top])+y_s-1,black);
    	stos_x[top]=0;
    	stos_y[top]=0;
     top--;
+    int wart=1;
+    int forced=0;
+    /*for(int k=0;k<8;k++){
+         if(check2(stos_x[top]+vert[k],stos_y[top]+horiz[k])>0){
+             if(check2(stos_x[top]+vert[k],stos_y[top]+horiz[k])==1&&
+                check (stos_x[top]+vert[k],stos_y[top]+horiz[k])==0){
+             	forced++;forced_move_x=stos_x[top]+vert[k];forced_move_y=stos_y[top]+horiz[k];
+           	 };
+       	 };
+    };*/
+    
+    for(int k=0;k<8;k++){
+    	if(check2(stos_x[top]+vert[k],stos_y[top]+horiz[k])==1&&
+           check (stos_x[top]+vert[k],stos_y[top]+horiz[k])==0){
+          	forced++;forced_move_x=stos_x[top]+vert[k];forced_move_y=stos_y[top]+horiz[k];
+   	    };
     };
+    clear_keybuf();
+    if(forced>1)wart=0;
+    return wart;
+};
 };
 
 void Tboard::draw_field(int x,int y,int back)
 {
     switch(back)
     {
-        case 0:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,red);break;
-        case 1:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,blue);break;
-        case 2:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,green);break;
-        default:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,green);
-        
+        case -1:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,makecol24(255,128,128));break;
+        case 0:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,dred);break;
+        case 1:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,dblue);break;
+        case 2:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,dgreen);break;
+        default:rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,dgreen);
     };
+    /*text_mode(-1);
+    textprintf(bitmap,font,x_s*(x-1),y_s*(y-1),white,"%i",back);
+    text_mode(0);*/
    //if(back>0)
    // rectfill(bitmap,x_s*(x-1),y_s*(y-1),x_s*(x-1)+x_s-2,y_s*(y-1)+y_s-2,green);
    // else
@@ -265,30 +314,46 @@ void Tboard::draw_field(int x,int y,int back)
 void Tboard::draw(int x,int y,int back)
 {
     if(data.grafika){
-    double moves_per_sec=double(moves)/double(time_sec)*(1000/double(time_step));
-    double paths_per_sec=double(closed_paths)/double(time_sec)*(1000/double(time_step));
+    double moves_per_sec=double(moves)/double(timer)*1000;
+    //double paths_per_sec=double(closed_paths)/double(timer)*(1000/double(time_step));
     int i,j;
     if(data.szachownica==2){
-        acquire_bitmap(bitmap);
+     acquire_bitmap(bitmap);
      for(i=1;i<=size;i++)
      for(j=1;j<=size;j++)
      draw_field(i,j,check(i,j));
-     blit(bitmap,screen,0,0,0,0,x_s*size,y_s*size);
-     
-     for(i=1;i<=size;i++)
+     /*for(int k=1;k<top;k++)
+     line(bitmap,stos_x[k]*x_s+x_s/2-x_s,  stos_y[k]*y_s+y_s/2-y_s,
+                 stos_x[k+1]*x_s+x_s/2-x_s,stos_y[k+1]*y_s+y_s/2-y_s,white);*/
+     blit(bitmap,screen,0,0,x_s,y_s,x_s*size,y_s*size);
+     clear(bitmap);
+     /*for(i=1;i<=size;i++)
      for(j=1;j<=size;j++)
      draw_field(i,j,check2(i,j));
-     blit(bitmap,screen,0,0,x_s*size+2,0,x_s*size,y_s*size);
+     blit(bitmap,screen,0,0,x_s*size+2+x_s,y_s,x_s*size,y_s*size);*/
      release_bitmap(bitmap);
- };
+    };
+    
+    if(data.szachownica==1){
+     acquire_bitmap(bitmap);
+     clear(bitmap);
+     for(i=1;i<=size;i++)
+     for(j=1;j<=size;j++)
+     draw_field(i,j,check(i,j));
+     for(int k=1;k<top;k++)
+     line(bitmap,stos_x[k]*x_s+x_s/2-x_s,  stos_y[k]*y_s+y_s/2-y_s,
+                 stos_x[k+1]*x_s+x_s/2-x_s,stos_y[k+1]*y_s+y_s/2-y_s,white);
+     blit(bitmap,screen,0,0,x_s,y_s,x_s*size,y_s*size);
+     release_bitmap(bitmap);
+    };
+ 
  if(data.szachownica){
-    textprintf(screen,font,x,y+y_s*size+10,white,"%u",moves);
-    textprintf(screen,font,x,y+y_s*size+20,white,"ruchy na sekunde:%f",moves_per_sec);
-    textprintf(screen,font,x,y+y_s*size+30,white,"sciezki na sekunde:%f",paths_per_sec);
+    textprintf(screen,font,x,y+y_s*size+20,white,"top:%i moves:%u",top,moves);
+    textprintf(screen,font,x,y+y_s*size+30,white,"ruchy na sekunde:%f",moves_per_sec);
+    textprintf(screen,font,x,y+y_s*size+50,white,"czas:%i",timer);
 }else{
     textprintf(screen,font,0,10,white,"%u",moves);
     textprintf(screen,font,0,20,white,"ruchy na sekunde:%f",moves_per_sec);
-    textprintf(screen,font,0,30,white,"sciezki na sekunde:%f",paths_per_sec);
 };
     };
 };
@@ -296,7 +361,8 @@ void Tboard::draw(int x,int y,int back)
 void timer_handle()
 {
     time_sec++;
-    //board->draw(0,0,0);
+    timer+=time_step;
+    board->draw(0,0,0);
 };
 
 inline int Tboard::assert(int ret,int x,int y)
@@ -308,36 +374,40 @@ inline int Tboard::assert(int ret,int x,int y)
 
 void Tboard::zapisz_stan()
 {
+    debug("zapisz stan\n");
     if(data.zapis)
-    fprintf(zapis,"%i\n",closed_paths);
+    fprintf(zapis,"rozwi¹zanie znaleziono po %i ruchach, w czasie %i ms\n",moves,timer);
     for(int x=1;x<=size;x++){
      fprintf(zapis,"|");
      for(int y=1;y<=size;y++)fprintf(zapis,"%3u ",check(x,y));
      fprintf(zapis,"|\n");
     };
+    debug(" zapisano\n");
 };
 
 int Tboard::move(int x,int y,int i)
 {
-    while(top<size*size&&(key[KEY_ESC]==0)){
-        if(stos_k[top]<8)
-        if(forced_move_x)
-          push(forced_move_x,forced_move_y,-1);
-        else
-          push(stos_x[top]+vert[stos_k[top]],stos_y[top]+horiz[stos_k[top]],-1);
-        else
-          pop();
-        debug("move");debug(stos_x[top]);debug(stos_y[top]);debug(stos_k[top]);debug("\n");
-        clear_keybuf();
-        while(!keypressed());
+    int ret=1;
+    while(top<(size*size-1)&&(key[KEY_ESC]==0)){
+        if((stos_k[top]<8)&&ret){
+         if(forced_move_x)
+          ret=push(forced_move_x,forced_move_y,-1);
+         else
+          ret=push(stos_x[top]+vert[stos_k[top]],stos_y[top]+horiz[stos_k[top]],-1);
+        }else{
+          ret=pop();
+        };
+        if(time_sec*time_step>data.backtrace){while(top>size*size*1/4)pop(); time_sec=0;};
+        if(ret==0){ret=pop();};
         stos_k[top]++;
     };
+    zapisz_stan();
 };
 
 void Tboard::chess()
 {
     moves=0;
-	push(1,1,0);
+	push(size,1,0);
 	move(1,1,1);
 };
 
@@ -352,11 +422,12 @@ void init()
     if(install_keyboard()!=0){
         alert("Nie uda³o siê zainicjowaæ klawiatury",NULL,NULL,"OK",NULL,1,2);
     };
-    if(data.zapis)zapis=fopen("c:/knight.txt","w+");
+    if(data.zapis)zapis=fopen("knight.txt","w+");
     if(install_timer()!=0){
         alert("Nie uda³o siê zainicjowaæ timer'a",NULL,NULL,"OK",NULL,1,2);
     };
     text_mode(0);
+    time_step=data.update;
 };
 
 void close()
@@ -377,6 +448,7 @@ void load_data(){
     data.dump_data=get_config_int("debug","dump_data",0);
     data.szachownica=get_config_int("grafika","szachownica",0);
     data.backtrace=get_config_int(NULL,"backtrace_time",500);
+    data.update=get_config_int("grafika","update",50);
 };
     
 int main(int argc, char *argv[])
@@ -392,8 +464,11 @@ int main(int argc, char *argv[])
     if(data.timer_mode)
      remove_int(timer_handle);
     close();
-    clear_keybuf();
-    while(!keypressed());
+    if(data.grafika){
+     clear_keybuf();
+     while(!keypressed());
+    };
+    delete board;
     return 0;
 };
       END_OF_MAIN()
